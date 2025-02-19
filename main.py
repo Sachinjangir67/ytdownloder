@@ -120,7 +120,7 @@ def download_video(url, quality, download_id):
         downloads[download_id]['error'] = str(e)
         # Cleanup directory if error occurs
         shutil.rmtree(download_dir, ignore_errors=True)
-        
+
 def get_progress_hook(download_id):
     def progress_hook(d):
         if d['status'] == 'downloading':
