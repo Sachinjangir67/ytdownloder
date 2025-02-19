@@ -77,7 +77,10 @@ cleanup_thread.start()
 
 def download_video(url, quality, download_id):
     try:
-        # Create format string based on quality
+        # Create download directory
+        download_dir = os.path.join(DOWNLOAD_FOLDER, download_id)
+        os.makedirs(download_dir, exist_ok=True)
+
         if quality == 'audio':
             ydl_opts = {
                 'format': 'bestaudio/best',
@@ -90,30 +93,34 @@ def download_video(url, quality, download_id):
                 }],
             }
         else:
-            format_string = 'bestvideo[height<=?{}]+bestaudio/best[height<=?{}]'.format(
-                quality.replace('p', ''), quality.replace('p', '')
-            ) if quality != 'best' else 'bestvideo+bestaudio/best'
+            # Generate correct format string
+            if quality == 'best':
+                format_string = 'bestvideo+bestaudio/best'
+            else:
+                height = quality.replace('p', '')
+                format_string = f'bestvideo[height<={height}]+bestaudio/best'
             
             ydl_opts = {
                 'format': format_string,
                 'progress_hooks': [get_progress_hook(download_id)],
-                'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{download_id}/%(title)s.%(ext)s'),
+                'outtmpl': os.path.join(DOWNLOAD_FOLDER, f'{download_id}/%(title)s.mp4'),
                 'merge_output_format': 'mp4',
             }
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=True)
-            downloads[download_id]['filename'] = os.path.join(
-                DOWNLOAD_FOLDER,
-                f'{download_id}',
-                ydl.prepare_filename(info)
-            )
+            # Get the correct filename after merging
+            sanitized_title = sanitize_string(info.get('title', 'video')).replace('/', '_')
+            filename = os.path.join(download_dir, f"{sanitized_title}.mp4")
+            downloads[download_id]['filename'] = filename
             downloads[download_id]['status'] = 'finished'
             
     except Exception as e:
         downloads[download_id]['status'] = 'error'
         downloads[download_id]['error'] = str(e)
-
+        # Cleanup directory if error occurs
+        shutil.rmtree(download_dir, ignore_errors=True)
+        
 def get_progress_hook(download_id):
     def progress_hook(d):
         if d['status'] == 'downloading':
